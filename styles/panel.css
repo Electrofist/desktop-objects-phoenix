@@ -1,0 +1,83 @@
+/* Desktop Objects Studio panel. Follows the editor theme; one accent from the object. */
+
+#desktop-objects-toolbar-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9a9a9a;
+}
+#desktop-objects-toolbar-btn:hover,
+#desktop-objects-toolbar-btn.selected-button { color: #e8e8e8; }
+
+.dobj {
+    height: 100%;
+    overflow-y: auto;
+    padding: 12px 14px 20px;
+    box-sizing: border-box;
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.dobj-top { display: flex; gap: 8px; margin-bottom: 14px; }
+.dobj-select { flex: 1; min-width: 0; }
+.dobj-new {
+    border-radius: 6px;
+    padding: 2px 10px;
+    white-space: nowrap;
+}
+.dobj-empty { opacity: 0.7; padding: 24px 4px; text-align: center; }
+
+.dobj-card { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.dobj-icon { width: 44px; height: 44px; flex: none; }
+.dobj-titles { flex: 1; min-width: 0; }
+.dobj-name { font-weight: 600; font-size: 14px; }
+.dobj-tagline { opacity: 0.75; }
+.dobj-accent {
+    width: 14px; height: 14px; border-radius: 50%; flex: none;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25) inset;
+}
+
+.dobj-toggle { display: inline-flex; border-radius: 7px; overflow: hidden; margin-bottom: 10px; }
+.dobj-toggle button { border-radius: 0; padding: 3px 14px; margin: 0; opacity: 0.6; }
+.dobj-toggle button.selected { opacity: 1; font-weight: 600; }
+
+.dobj-stage {
+    border-radius: 10px;
+    padding: 14px;
+    background:
+        radial-gradient(circle, rgba(128, 128, 128, 0.18) 1px, transparent 1.2px) 0 0 / 12px 12px,
+        rgba(128, 128, 128, 0.08);
+}
+.dobj-art { position: relative; width: 100%; user-select: none; }
+.dobj-art-img { display: block; width: 100%; height: auto; pointer-events: none; }
+.dobj-noart { opacity: 0.6; text-align: center; padding: 30px 0; }
+
+.dobj-area {
+    position: absolute;
+    border: 2px dashed #b7c23a;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.10);
+    cursor: move;
+    box-sizing: border-box;
+    touch-action: none;
+}
+.dobj-area-grid {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.18) 0 1px, transparent 1px 25%);
+    pointer-events: none;
+}
+.dobj-handle {
+    position: absolute; right: -7px; bottom: -7px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: #fff; border: 2px solid #333;
+    cursor: nwse-resize;
+}
+
+.dobj-area-values { font-family: ui-monospace, Menlo, monospace; font-size: 11px; opacity: 0.7; margin: 8px 0 12px; }
+
+.dobj-problems { list-style: none; padding: 0; margin: 0; }
+.dobj-problems li {
+    padding: 6px 8px; border-radius: 6px; margin-bottom: 4px;
+    background: rgba(230, 80, 60, 0.14); cursor: pointer;
+}
+.dobj-problems li.ok { background: rgba(120, 190, 90, 0.16); cursor: default; }

@@ -28,31 +28,46 @@ define(function (require, exports, module) {
     function html() {
         return `
 <div id="desktop-objects-panel" class="dobj">
-  <div class="dobj-top">
-    <select class="dobj-select" aria-label="Object"></select>
-    <button class="dobj-new" title="New Desktop Object">+ New</button>
+  <div class="dobj-empty">
+    <div class="dobj-empty-title">No Desktop Objects here</div>
+    <div class="dobj-empty-text">Open your copy of the Desktop Objects repo to preview its objects.</div>
   </div>
-  <div class="dobj-empty">Open a Desktop Objects project to preview objects here.</div>
   <div class="dobj-body">
-    <div class="dobj-card">
-      <img class="dobj-icon" alt="">
-      <div class="dobj-titles"><div class="dobj-name"></div><div class="dobj-tagline"></div></div>
-      <span class="dobj-accent" title="accent"></span>
-    </div>
-    <div class="dobj-toggle" role="group" aria-label="Art">
-      <button data-open="false">Closed</button><button data-open="true">Open</button>
+    <header class="dobj-header">
+      <div class="dobj-icon-wrap"><img class="dobj-icon" alt=""></div>
+      <div class="dobj-titles">
+        <div class="dobj-name"></div>
+        <div class="dobj-tagline"></div>
+      </div>
+    </header>
+    <div class="dobj-bar">
+      <label class="dobj-switch" title="Choose an object">
+        <select class="dobj-select" aria-label="Object"></select>
+        <svg viewBox="0 0 10 6" width="9" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </label>
+      <div class="dobj-segment" role="tablist" aria-label="Art">
+        <button role="tab" data-open="false">Closed</button>
+        <button role="tab" data-open="true">Open</button>
+      </div>
+      <button class="dobj-new" title="New Desktop Object" aria-label="New Desktop Object">
+        <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
     </div>
     <div class="dobj-stage">
       <div class="dobj-art">
         <img class="dobj-art-img" alt="">
-        <div class="dobj-area" title="Drag to move where files appear. Drag the corner to resize.">
-          <div class="dobj-area-grid"></div><span class="dobj-handle"></span>
+        <div class="dobj-area" title="Drag to move where files sit. Drag the corner to resize.">
+          <span class="dobj-area-label">Files</span>
+          <span class="dobj-handle"></span>
         </div>
       </div>
-      <div class="dobj-noart">No art yet.</div>
+      <div class="dobj-noart">Add Art/closed.png and Art/open.png to see your object here.</div>
     </div>
-    <div class="dobj-area-values"></div>
-    <ul class="dobj-problems"></ul>
+    <div class="dobj-meta"></div>
+    <section class="dobj-checks">
+      <div class="dobj-section-title">Checks</div>
+      <ul class="dobj-problems"></ul>
+    </section>
   </div>
 </div>`;
     }
@@ -64,11 +79,14 @@ define(function (require, exports, module) {
         refreshTimer = setTimeout(refresh, delay || 0);
     }
 
+    function formatArea(area) {
+        return area.map(n => (+n).toFixed(2)).join("  ");
+    }
+
     async function refresh() {
         if (!panel || !panel.isVisible()) { return; }
         const isProject = await Objects.isDesktopObjectsProject();
-        $panel.find(".dobj-empty").toggle(!isProject);
-        $panel.find(".dobj-body, .dobj-top").toggle(isProject);
+        $panel.toggleClass("is-empty", !isProject);
         if (!isProject) { return; }
 
         const ids = await Objects.listObjects();
@@ -82,42 +100,55 @@ define(function (require, exports, module) {
         if (!current) { return; }
 
         const dir = Objects.objectDir(current);
+        Objects.beginImages();
         let text = "";
         try { text = await Objects.readCardText(current); } catch (e) { text = ""; }
         const result = Validate.validate(text, current);
         card = result.card || card || {};
 
+        const accent = /^#[0-9a-f]{6}$/i.test(card.accent || "") ? card.accent : "#B7C23A";
+        $panel[0].style.setProperty("--dobj-accent", accent);
         $panel.find(".dobj-name").text(card.name || current);
         $panel.find(".dobj-tagline").text(card.tagline || "");
-        $panel.find(".dobj-accent").css("background", /^#[0-9a-f]{6}$/i.test(card.accent || "") ? card.accent : "transparent")
-            .toggle(!!card.accent);
-        const iconURL = await Objects.imageURL(dir + "media/icon.png");
-        $panel.find(".dobj-icon").attr("src", iconURL || "").toggle(!!iconURL);
 
         // Template objects have Art/closed.png and Art/open.png; others show their screenshots.
         const shots = Array.isArray(card.screenshots) ? card.screenshots : [];
         const closedURL = await Objects.imageURL(dir + "Art/closed.png") || (shots[0] && await Objects.imageURL(dir + shots[0]));
         const openURL = await Objects.imageURL(dir + "Art/open.png") || (shots[1] && await Objects.imageURL(dir + shots[1])) || closedURL;
+        const iconURL = await Objects.imageURL(dir + "media/icon.png") || closedURL;
+        $panel.find(".dobj-icon").attr("src", iconURL || "");
+        $panel.find(".dobj-icon-wrap").toggleClass("is-blank", !iconURL);
+
         const artURL = showOpen ? openURL : closedURL;
-        $panel.find(".dobj-art").toggle(!!artURL);
-        $panel.find(".dobj-noart").toggle(!artURL);
+        $panel.find(".dobj-stage").toggleClass("has-art", !!artURL);
         $panel.find(".dobj-art-img").attr("src", artURL || "");
-        $panel.find(".dobj-toggle button").each(function () {
-            $(this).toggleClass("selected", $(this).data("open") === showOpen);
+        $panel.find(".dobj-segment button").each(function () {
+            const on = $(this).data("open") === showOpen;
+            $(this).toggleClass("is-on", on).attr("aria-selected", on);
         });
 
         const area = card.look && card.look.itemsArea;
         const hasArea = showOpen && Array.isArray(area) && area.length === 4;
-        $panel.find(".dobj-area").toggle(hasArea).css("border-color", card.accent || "");
+        $panel.find(".dobj-area").toggle(hasArea);
         if (hasArea) { placeArea(area); }
-        $panel.find(".dobj-area-values").text(hasArea ? "Files area: [" + area.map(n => +n.toFixed(3)).join(", ") + "]" :
-            (showOpen ? "This object draws its own interior, so there is no files area to place." : ""));
+        const $meta = $panel.find(".dobj-meta").empty();
+        if (hasArea) {
+            $meta.append($("<span class='dobj-meta-label'>").text("Files area"),
+                $("<span class='dobj-meta-value'>").text(formatArea(area)));
+        } else if (showOpen && artURL) {
+            $meta.append($("<span class='dobj-meta-label'>").text("This object draws its own interior."));
+        }
+
+        setTimeout(Objects.endImages, 500);   // after the new images have loaded
 
         const $problems = $panel.find(".dobj-problems").empty();
         if (result.problems.length === 0) {
-            $problems.append($("<li class='ok'>").text("object.json looks good."));
+            $problems.append($("<li class='is-ok'>").text("object.json looks good"));
         }
-        result.problems.forEach(p => $problems.append($("<li>").text(p.message).on("click", () => openCard(p.pos))));
+        result.problems.forEach(p => $problems.append(
+            $("<li class='is-problem' tabindex='0'>").text(p.message).attr("title", "Show in object.json")
+                .on("click keydown", e => { if (e.type === "click" || e.key === "Enter") { openCard(p.pos); } })
+        ));
     }
 
     function placeArea(area) {
@@ -155,7 +186,7 @@ define(function (require, exports, module) {
                 area = [clamp(Math.min(from[0] + dx, 1 - from[2])), clamp(Math.min(from[1] + dy, 1 - from[3])), from[2], from[3]];
             }
             placeArea(area);
-            $panel.find(".dobj-area-values").text("Files area: [" + area.map(n => +n.toFixed(3)).join(", ") + "]");
+            $panel.find(".dobj-meta-value").text(formatArea(area));
         }
         function up() {
             document.removeEventListener("pointermove", move);
@@ -201,7 +232,7 @@ define(function (require, exports, module) {
             if (panelID === PANEL_ID) { scheduleRefresh(); }
         });
         $panel.on("change", ".dobj-select", function () { current = $(this).val(); scheduleRefresh(); });
-        $panel.on("click", ".dobj-toggle button", function () { showOpen = $(this).data("open") === true; scheduleRefresh(); });
+        $panel.on("click", ".dobj-segment button", function () { showOpen = $(this).data("open") === true; scheduleRefresh(); });
         $panel.on("click", ".dobj-new", e => { e.preventDefault(); onNewObject(); });
         $panel.on("pointerdown", ".dobj-handle", e => { e.stopPropagation(); startDrag(e.originalEvent, true); });
         $panel.on("pointerdown", ".dobj-area", e => startDrag(e.originalEvent, false));
@@ -212,9 +243,9 @@ define(function (require, exports, module) {
             if (Objects.isCardPath(doc.file.fullPath)) { scheduleRefresh(150); }
         });
         FileSystem.on("change", (e, entry) => {
-            if (entry && Objects.objectIdForPath(entry.fullPath || "")) { Objects.forgetImages(); scheduleRefresh(200); }
+            if (entry && Objects.objectIdForPath(entry.fullPath || "")) { scheduleRefresh(200); }
         });
-        ProjectManager.on("projectOpen", () => { Objects.forgetImages(); current = null; scheduleRefresh(100); });
+        ProjectManager.on("projectOpen", () => { current = null; scheduleRefresh(100); });
     }
 
     function show(id) {

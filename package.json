@@ -2,7 +2,7 @@
     "title": "Desktop Objects Studio",
     "name": "github-electrofist-desktop-objects-phoenix",
     "description": "Make Desktop Objects (real-feeling Mac desktop apps that hold your files) in Phoenix Code: live art preview with a draggable files area, object.json checks as you type, and a New Desktop Object command.",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "license": "MIT",
     "author": "Krrish Parmar (https://github.com/Electrofist)",
     "homepage": "https://github.com/Electrofist/desktop-objects-phoenix",

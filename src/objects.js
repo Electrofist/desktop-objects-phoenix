@@ -31,30 +31,51 @@ define(function (require, exports, module) {
 
     /** True when the open project looks like a Desktop Objects repo. */
     function isDesktopObjectsProject() {
+        const r = root();
+        return r ? exists(r + "objects/") : Promise.resolve(false);
+    }
+
+    /** Names in a folder, read fresh from disk. */
+    function readNames(dirPath) {
         return new Promise(resolve => {
-            const r = root();
-            if (!r) { return resolve(false); }
-            FileSystem.getDirectoryForPath(r + "objects/").exists((err, exists) => resolve(!err && exists));
+            if (window.Phoenix && Phoenix.fs && Phoenix.fs.readdir) {
+                Phoenix.fs.readdir(dirPath, (err, names) => resolve(err || !names ? [] : names.map(String)));
+            } else {
+                FileSystem.getDirectoryForPath(dirPath).getContents((err, entries) =>
+                    resolve(err || !entries ? [] : entries.map(e => e.name)));
+            }
         });
     }
 
     /** Ids of every folder in objects/ that has an object.json. */
-    function listObjects() {
-        return new Promise(resolve => {
-            const r = root();
-            if (!r) { return resolve([]); }
-            FileSystem.getDirectoryForPath(r + "objects/").getContents((err, entries) => {
-                if (err || !entries) { return resolve([]); }
-                const dirs = entries.filter(e => e.isDirectory).map(e => e.name).sort();
-                Promise.all(dirs.map(id => exists(objectDir(id) + "object.json").then(ok => ok ? id : null)))
-                    .then(ids => resolve(ids.filter(Boolean)));
-            });
+    async function listObjects() {
+        const r = root();
+        if (!r) { return []; }
+        const names = (await readNames(r + "objects/")).filter(n => !n.startsWith(".")).sort();
+        const ids = await Promise.all(names.map(id => exists(objectDir(id) + "object.json").then(ok => ok ? id : null)));
+        return ids.filter(Boolean);
+    }
+
+    // Reads go through Phoenix.fs, which always sees the file on disk. FileSystem's cache can lag
+    // behind changes made outside Phoenix (git pull, scripts, other editors).
+    function rawRead(fullPath, encoding) {
+        return new Promise((resolve, reject) => {
+            const done = (err, data) => err ? reject(err) : resolve(data);
+            if (window.Phoenix && Phoenix.fs && Phoenix.fs.readFile) {
+                encoding ? Phoenix.fs.readFile(fullPath, encoding, done) : Phoenix.fs.readFile(fullPath, done);
+            } else {
+                FileSystem.getFileForPath(fullPath).read({ encoding: encoding || "binary", doNotCache: true }, done);
+            }
         });
     }
 
     function exists(fullPath) {
         return new Promise(resolve => {
-            FileSystem.resolve(fullPath, err => resolve(!err));
+            if (window.Phoenix && Phoenix.fs && Phoenix.fs.stat) {
+                Phoenix.fs.stat(fullPath, err => resolve(!err));
+            } else {
+                FileSystem.resolve(fullPath, err => resolve(!err));
+            }
         });
     }
 
@@ -67,32 +88,33 @@ define(function (require, exports, module) {
     }
 
     function readText(fullPath) {
-        return new Promise((resolve, reject) => {
-            // doNotCache: files changed outside Phoenix (git pull, scripts) must be read fresh.
-            FileSystem.getFileForPath(fullPath).read({ doNotCache: true }, (err, text) => err ? reject(err) : resolve(text));
-        });
+        return rawRead(fullPath, "utf8").then(String);
     }
 
-    const urlCache = new Map();   // fullPath -> object URL, released when the file changes
+    // Object URLs made for the current render; the previous render's are released after it.
+    let liveURLs = [], previousURLs = [];
 
     /** An image file as a URL an <img> can show, or null if it does not exist. */
     function imageURL(fullPath) {
-        if (urlCache.has(fullPath)) { return Promise.resolve(urlCache.get(fullPath)); }
-        return new Promise(resolve => {
-            FileSystem.getFileForPath(fullPath).read({ encoding: "binary", doNotCache: true }, (err, bytes) => {
-                if (err || !bytes) { return resolve(null); }
-                const type = fullPath.endsWith(".png") ? "image/png" :
-                    fullPath.endsWith(".gif") ? "image/gif" : "image/jpeg";
-                const url = URL.createObjectURL(new Blob([bytes], { type }));
-                urlCache.set(fullPath, url);
-                resolve(url);
-            });
-        });
+        return rawRead(fullPath).then(bytes => {
+            const type = fullPath.endsWith(".png") ? "image/png" :
+                fullPath.endsWith(".gif") ? "image/gif" : "image/jpeg";
+            const url = URL.createObjectURL(new Blob([bytes], { type }));
+            liveURLs.push(url);
+            return url;
+        }).catch(() => null);
     }
 
-    function forgetImages() {
-        urlCache.forEach(url => URL.revokeObjectURL(url));
-        urlCache.clear();
+    /** Call before a render: images made from now on belong to the new render. */
+    function beginImages() {
+        previousURLs = previousURLs.concat(liveURLs);
+        liveURLs = [];
+    }
+
+    /** Call after a render has swapped in its images: frees the old ones. */
+    function endImages() {
+        previousURLs.forEach(url => URL.revokeObjectURL(url));
+        previousURLs = [];
     }
 
     exports.root = root;
@@ -105,5 +127,6 @@ define(function (require, exports, module) {
     exports.readCardText = readCardText;
     exports.readText = readText;
     exports.imageURL = imageURL;
-    exports.forgetImages = forgetImages;
+    exports.beginImages = beginImages;
+    exports.endImages = endImages;
 });

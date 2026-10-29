@@ -1,0 +1,37 @@
+name: Release
+
+# Push a tag like v0.1.0 (matching "version" in package.json).
+# Builds extension.zip, creates the GitHub release and sends it to the Phoenix Code extension store.
+# Releases made by this workflow do not trigger other workflows, so the store is notified here.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the version
+        run: |
+          VERSION="$(jq -r .version package.json)"
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::The tag is $GITHUB_REF_NAME but package.json says $VERSION."
+            exit 1
+          fi
+
+      - name: Build extension.zip
+        run: zip -r extension.zip package.json main.js src styles LICENSE README.md
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" extension.zip --title "Desktop Objects Studio $GITHUB_REF_NAME" --generate-notes
+
+      - name: Send it to the Phoenix Code extension store
+        run: curl --fail-with-body "https://publish.phcode.dev/publishGithubRelease?releaseRef=${{ github.repository }}:refs/tags/$GITHUB_REF_NAME"
